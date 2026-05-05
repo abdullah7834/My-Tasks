@@ -50,11 +50,11 @@ export async function POST(request: Request) {
 
   const supabase = createServerSupabaseClient(request);
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError || !session) {
+  if (userError || !user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         description: body.description ?? null,
         icon: body.icon ?? "",
         color: body.color ?? "#6366f1",
-        user_id: session.user.id,
+        user_id: user.id,
       },
     ] as any)
     .select() as any;
@@ -89,11 +89,11 @@ export async function PATCH(request: Request) {
   const supabase = createServerSupabaseClient(request) as any;
 
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError || !session) {
+  if (userError || !user) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
@@ -102,7 +102,7 @@ export async function PATCH(request: Request) {
     description: body.description ?? null,
     icon: body.icon ?? null,
     color: body.color ?? null,
-    user_id: session.user.id,
+    user_id: user.id,
   } as any;
 
   const { data, error } = await supabase

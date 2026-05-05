@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     redirect("/login");
   }
 
-  const userId = session.user.id;
+  const userId = user.id;
   const today = new Date().toISOString().slice(0, 10);
 
   const [projectsRes, tasksRes] = await Promise.all([
@@ -50,9 +50,9 @@ export default async function DashboardPage() {
   const recent = (tasks as any[]).filter((t) => isActive(t.status)).slice(0, 6);
 
   const fullName =
-    (session.user.user_metadata?.full_name as string | undefined) ?? null;
+    (user.user_metadata?.full_name as string | undefined) ?? null;
   const displayName =
-    fullName?.trim() || session.user.email?.split("@")[0] || null;
+    fullName?.trim() || user.email?.split("@")[0] || null;
 
   const dateLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",

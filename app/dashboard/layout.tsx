@@ -10,10 +10,10 @@ export default async function DashboardLayout({
 }) {
   const supabase = await createSupabaseServerClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -21,8 +21,8 @@ export default async function DashboardLayout({
     <div className="flex min-h-[100dvh] bg-background">
       <DashboardSidebar
         user={{
-          email: session.user.email,
-          full_name: session.user.user_metadata?.full_name ?? null,
+          email: user.email,
+          full_name: user.user_metadata?.full_name ?? null,
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col">

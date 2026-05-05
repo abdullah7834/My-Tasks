@@ -66,11 +66,11 @@ export async function POST(request: Request) {
 
   const supabase = createServerSupabaseClient(request);
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError || !session) {
+  if (userError || !user) {
     return NextResponse.json(
       { error: "Authentication required." },
       { status: 401 },
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     end_time: body.end_time ?? null,
     tags: body.tags ?? [],
     position: body.position ?? 0,
-    user_id: session.user.id,
+    user_id: user.id,
   };
 
   const { data, error } = await (supabase as any)
@@ -117,11 +117,11 @@ export async function PATCH(request: Request) {
 
   const supabase = createServerSupabaseClient(request) as any;
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError || !session) {
+  if (userError || !user) {
     return NextResponse.json(
       { error: "Authentication required." },
       { status: 401 },
@@ -151,7 +151,7 @@ export async function PATCH(request: Request) {
     .from("tasks")
     .update(updates)
     .eq("id", taskId)
-    .eq("user_id", session.user.id)
+    .eq("user_id", user.id)
     .select(TASK_COLUMNS)
     .single();
 
@@ -175,11 +175,11 @@ export async function DELETE(request: Request) {
 
   const supabase = createServerSupabaseClient(request);
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (sessionError || !session) {
+  if (userError || !user) {
     return NextResponse.json(
       { error: "Authentication required." },
       { status: 401 },
@@ -190,7 +190,7 @@ export async function DELETE(request: Request) {
     .from("tasks")
     .delete()
     .eq("id", taskId)
-    .eq("user_id", session.user.id);
+    .eq("user_id", user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

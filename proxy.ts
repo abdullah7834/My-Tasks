@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export default async function (request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -24,17 +24,20 @@ export default async function (request: NextRequest) {
     },
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
+  // getUser() validates the JWT against Supabase Auth — required per
+  // Supabase guidance for SSR. Reading session from cookies alone is
+  // not authoritative.
+  const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
 
   const isProtectedRoute = pathname === '/' || pathname.startsWith('/dashboard');
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup');
 
-  if (!session && isProtectedRoute) {
+  if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (session && isAuthRoute) {
+  if (user && isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
