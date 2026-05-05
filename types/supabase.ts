@@ -55,6 +55,9 @@ export interface Database {
           status: string;
           priority: string;
           due_date: string | null;
+          start_time: string | null;
+          end_time: string | null;
+          duration_minutes: number | null;
           tags: string[] | null;
           parent_task_id: string | null;
           project_id: string;
@@ -70,6 +73,8 @@ export interface Database {
           status?: string;
           priority?: string;
           due_date?: string | null;
+          start_time?: string | null;
+          end_time?: string | null;
           tags?: string[] | null;
           parent_task_id?: string | null;
           project_id: string;
@@ -84,6 +89,8 @@ export interface Database {
           status?: string;
           priority?: string;
           due_date?: string | null;
+          start_time?: string | null;
+          end_time?: string | null;
           tags?: string[] | null;
           parent_task_id?: string | null;
           project_id?: string;

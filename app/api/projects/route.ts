@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("projects")
     .select("id,name,icon,color,description")
-    .order("position", { ascending: true }) as any;
+    .order("created_at", { ascending: true }) as any;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -23,7 +23,7 @@ export async function createSupabaseServerClient() {
             if (value) {
               cookieStore.set(name, value, options as any);
             } else {
-              cookieStore.delete(name, options as any);
+              cookieStore.delete(name);
             }
           });
         },

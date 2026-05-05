@@ -1,7 +1,7 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import DashboardSidebar from '@/components/dashboard/Sidebar';
-import DashboardHeader from '@/components/dashboard/Header';
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import DashboardSidebar from "@/components/dashboard/Sidebar";
+import DashboardHeader from "@/components/dashboard/Header";
 
 export default async function DashboardLayout({
   children,
@@ -9,22 +9,25 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (!session) {
-    redirect('/login');
+    redirect("/login");
   }
 
   return (
-    <div className="flex h-screen bg-zinc-50 overflow-hidden">
-      {/* Sidebar */}
-      <DashboardSidebar />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardHeader user={session.user} />
-        
-        <main className="flex-1 overflow-auto p-6 lg:p-8">
+    <div className="flex min-h-[100dvh] bg-background">
+      <DashboardSidebar
+        user={{
+          email: session.user.email,
+          full_name: session.user.user_metadata?.full_name ?? null,
+        }}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <DashboardHeader />
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>

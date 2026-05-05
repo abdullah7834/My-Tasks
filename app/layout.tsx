@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Task Tracker",
-  description: "Personal task management built with Next.js and Supabase",
+  title: "Taskly — your task workspace",
+  description: "A minimal, focused task tracker.",
 };
 
 export default function RootLayout({
@@ -24,11 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="min-h-[100dvh] bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>
