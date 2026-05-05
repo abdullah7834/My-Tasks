@@ -1,0 +1,101 @@
+export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          email: string;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          created_at?: string | null;
+        };
+        Update: {
+          email?: string;
+          created_at?: string | null;
+        };
+      };
+      projects: {
+        Row: {
+          id: string;
+          name: string;
+          color: string | null;
+          icon: string | null;
+          description: string | null;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          color?: string | null;
+          icon?: string | null;
+          description?: string | null;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          color?: string | null;
+          icon?: string | null;
+          description?: string | null;
+          user_id?: string;
+          created_at?: string;
+        };
+      };
+      tasks: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          status: string;
+          priority: string;
+          due_date: string | null;
+          tags: string[] | null;
+          parent_task_id: string | null;
+          project_id: string;
+          position: number;
+          user_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          status?: string;
+          priority?: string;
+          due_date?: string | null;
+          tags?: string[] | null;
+          parent_task_id?: string | null;
+          project_id: string;
+          position?: number;
+          user_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          status?: string;
+          priority?: string;
+          due_date?: string | null;
+          tags?: string[] | null;
+          parent_task_id?: string | null;
+          project_id?: string;
+          position?: number;
+          user_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+  };
+}
