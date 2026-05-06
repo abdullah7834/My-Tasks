@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+<<<<<<< Updated upstream
 import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown } from "lucide-react";
+=======
+import {
+  LayoutGrid,
+  ListTodo,
+  LogOut,
+  FolderKanban,
+  UserCircle,
+} from "lucide-react";
+>>>>>>> Stashed changes
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -11,7 +21,11 @@ const navItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutGrid },
   { name: "Projects", href: "/dashboard/projects", icon: FolderKanban },
   { name: "All tasks", href: "/dashboard/tasks", icon: ListTodo },
+<<<<<<< Updated upstream
     { name: "Chats", href: "/dashboard/chats", icon: MessageSquare, hasDropdown: true },
+=======
+  { name: "Profile", href: "/dashboard/profile", icon: UserCircle },
+>>>>>>> Stashed changes
 ];
 
 interface SidebarUser {

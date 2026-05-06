@@ -7,6 +7,7 @@ const titleMap: Record<string, string> = {
   "/dashboard": "Overview",
   "/dashboard/projects": "Projects",
   "/dashboard/tasks": "All tasks",
+  "/dashboard/profile": "Profile",
 };
 
 export default function DashboardHeader() {
