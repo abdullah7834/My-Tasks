@@ -28,6 +28,7 @@ export default async function TasksPage() {
         "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at",
       )
       .eq("user_id", userId)
+      .not("status", "in", "(done,cancelled)")
       .order("position", { ascending: true }),
   ]);
 

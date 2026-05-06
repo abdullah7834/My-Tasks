@@ -131,6 +131,92 @@ export interface Database {
           created_at?: string;
         };
       };
+      chat_messages: {
+        Row: {
+          id: string;
+          sender_id: string;
+          recipient_id: string;
+          message: string;
+          read_at?: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          recipient_id: string;
+          message: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          sender_id?: string;
+          recipient_id?: string;
+          message?: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+      };
+      chat_rooms: {
+        Row: {
+          id: string;
+          name: string;
+          type: string;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          type?: string;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          type?: string;
+          created_by?: string;
+          created_at?: string;
+        };
+      };
+      chat_room_members: {
+        Row: {
+          room_id: string;
+          user_id: string;
+        };
+        Insert: {
+          room_id: string;
+          user_id: string;
+        };
+        Update: {
+          room_id?: string;
+          user_id?: string;
+        };
+      };
+      chat_room_messages: {
+        Row: {
+          id: string;
+          room_id: string;
+          sender_id: string;
+          message: string;
+          read_at?: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          sender_id: string;
+          message: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          room_id?: string;
+          sender_id?: string;
+          message?: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

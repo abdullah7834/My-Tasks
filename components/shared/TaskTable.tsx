@@ -65,6 +65,7 @@ interface TaskTableProps {
     updated_at?: string | null;
   }>;
   projects: ProjectOption[];
+  selectedFilter?: "all" | "completed" | "in-progress" | "in-review" | "cancelled";
 }
 
 const STATUS_OPTIONS = [
@@ -134,7 +135,7 @@ function nowAsHHMM(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export function TaskTable({ initialTasks, projects }: TaskTableProps) {
+export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: TaskTableProps) {
   const [rows, setRows] = useState<TaskRow[]>(
     initialTasks.map((t) => ({
       ...t,
@@ -648,6 +649,21 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
   const panelRow = panelRowId
     ? rows.find((r) => r.id === panelRowId) ?? null
     : null;
+  const displayedRows = rows.filter((row) => {
+    switch (selectedFilter) {
+      case "completed":
+        return row.status === "done";
+      case "in-progress":
+        return row.status === "in_progress";
+      case "in-review":
+        return row.status === "in_review";
+      case "cancelled":
+        return row.status === "cancelled";
+      case "all":
+      default:
+        return row.status !== "done" && row.status !== "cancelled";
+    }
+  });
   const panelIsRunning = !!panelRow && runningId === panelRow.id;
   const panelLiveDuration =
     panelIsRunning && runningStartRef.current !== null
@@ -691,7 +707,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {rows.length === 0 ? (
+            {displayedRows.length === 0 ? (
               <tr>
                 <td
                   colSpan={6}
@@ -701,7 +717,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
+              displayedRows.map((row) => {
                 const isSaving = savingIds.has(row.id);
                 const justSaved = recentlySavedIds.has(row.id);
                 const dur = durationMinutes(row.start_time, row.end_time);

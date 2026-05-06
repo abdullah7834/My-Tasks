@@ -4,13 +4,20 @@ import { TasksDashboard, type TaskFilterKey } from "@/components/dashboard/Tasks
 
 export const dynamic = "force-dynamic";
 
-const FILTERS: TaskFilterKey[] = ["all", "completed", "in-progress", "in-review"];
+const FILTERS: TaskFilterKey[] = [
+  "all",
+  "completed",
+  "in-progress",
+  "in-review",
+  "cancelled",
+];
 
 const STATUS_MAP: Record<TaskFilterKey, string | null> = {
   all: null,
   completed: "done",
   "in-progress": "in_progress",
   "in-review": "in_review",
+  cancelled: "cancelled",
 };
 
 export default async function TasksFilterPage({

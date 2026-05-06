@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StatsCards from "@/components/dashboard/StatsCards";
 import TaskForm from "@/components/dashboard/TaskForm";
 import RecentTasks from "@/components/dashboard/RecentTasks";
+import DashboardCharts from "@/components/dashboard/DashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,46 @@ export default async function DashboardPage() {
     total: tasks.length,
   };
 
-  const recent = (tasks as any[]).filter((t) => isActive(t.status)).slice(0, 6);
+  const activeTasks = (tasks as any[])
+    .filter((t) => isActive(t.status))
+    .slice(0, 5);
+
+  const statusCounts = {
+    not_started: tasks.filter((t: any) => t.status === "not_started").length,
+    in_progress: tasks.filter((t: any) => t.status === "in_progress").length,
+    stopped_temporarily: tasks.filter((t: any) => t.status === "stopped_temporarily").length,
+    in_review: tasks.filter((t: any) => t.status === "in_review").length,
+    done: tasks.filter((t: any) => t.status === "done").length,
+    cancelled: tasks.filter((t: any) => t.status === "cancelled").length,
+  };
+
+  const dueCounts = (tasks as any[]).reduce(
+    (acc, task) => {
+      if (!isActive(task.status)) return acc;
+      if (!task.due_date) {
+        acc.noDue += 1;
+      } else if (task.due_date < today) {
+        acc.overdue += 1;
+      } else if (task.due_date === today) {
+        acc.today += 1;
+      } else {
+        acc.upcoming += 1;
+      }
+      return acc;
+    },
+    { overdue: 0, today: 0, upcoming: 0, noDue: 0 },
+  );
+
+  const trend = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    const label = date.toLocaleDateString("en-US", { weekday: "short" });
+    const key = date.toISOString().slice(0, 10);
+    const count = (tasks as any[]).filter(
+      (task) => task.updated_at?.slice(0, 10) === key,
+    ).length;
+    return { label, count };
+  });
 
   const fullName =
     (user.user_metadata?.full_name as string | undefined) ?? null;
@@ -74,9 +114,16 @@ export default async function DashboardPage() {
 
       <StatsCards stats={stats} />
 
+      <DashboardCharts
+        statusCounts={statusCounts}
+        totalTasks={tasks.length}
+        dueCounts={dueCounts}
+        trend={trend}
+      />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
         <div className="lg:col-span-2">
-          <RecentTasks tasks={recent as any} projects={projects as any} />
+          <RecentTasks tasks={activeTasks as any} projects={projects as any} />
         </div>
         <div>
           <TaskForm projects={projects as any} />

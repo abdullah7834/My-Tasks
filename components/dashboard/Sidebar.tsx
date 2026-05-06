@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, ListTodo, LogOut, FolderKanban } from "lucide-react";
+import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -11,9 +11,11 @@ const navItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutGrid },
   { name: "Projects", href: "/dashboard/projects", icon: FolderKanban },
   { name: "All tasks", href: "/dashboard/tasks", icon: ListTodo },
+    { name: "Chats", href: "/dashboard/chats", icon: MessageSquare, hasDropdown: true },
 ];
 
 interface SidebarUser {
+  id?: string | null;
   email?: string | null;
   full_name?: string | null;
 }
@@ -21,6 +23,7 @@ interface SidebarUser {
 export default function DashboardSidebar({ user }: { user: SidebarUser }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [openChat, setOpenChat] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName =
@@ -66,22 +69,61 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
-                  active
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                }`}
-              >
-                <Icon size={16} strokeWidth={1.75} />
-                {item.name}
-              </Link>
+              <div key={item.href}>
+                {item.hasDropdown ? (
+                  <button
+                    type="button"
+                    onClick={() => setOpenChat((value) => !value)}
+                    className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                      active
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Icon size={16} strokeWidth={1.75} />
+                      {item.name}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={openChat ? "rotate-180 transition text-foreground" : "transition"}
+                    />
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
+                      active
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon size={16} strokeWidth={1.75} />
+                    {item.name}
+                  </Link>
+                )}
+                {item.hasDropdown && openChat ? (
+                  <div className="mt-1 space-y-1 pl-8">
+                    <Link
+                      href="/dashboard/chats"
+                      className={`block rounded-lg px-3 py-2 text-sm transition ${
+                        pathname === "/dashboard/chats"
+                          ? "bg-muted font-medium text-foreground"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      }`}
+                    >
+                      My Chats
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </nav>
       </div>
+
+
 
       <div className="mt-auto border-t border-border p-3">
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">

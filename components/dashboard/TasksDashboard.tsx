@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TaskTable } from "@/components/shared/TaskTable";
 import { CreateProjectDialog } from "@/components/shared/CreateProjectDialog";
 
-export type TaskFilterKey = "all" | "completed" | "in-progress" | "in-review";
+export type TaskFilterKey = "all" | "completed" | "in-progress" | "in-review" | "cancelled";
 
 export interface ProjectOption {
   id: string;
@@ -30,6 +30,7 @@ const FILTERS: Array<{ key: TaskFilterKey; label: string; href: string }> = [
   { key: "completed", label: "Completed tasks", href: "/dashboard/tasks/completed" },
   { key: "in-progress", label: "In progress", href: "/dashboard/tasks/in-progress" },
   { key: "in-review", label: "In review", href: "/dashboard/tasks/in-review" },
+  { key: "cancelled", label: "Cancelled", href: "/dashboard/tasks/cancelled" },
 ];
 
 export function TasksDashboard({
@@ -82,7 +83,7 @@ export function TasksDashboard({
         </div>
       </nav>
 
-      <TaskTable initialTasks={tasks} projects={projects} />
+      <TaskTable initialTasks={tasks} projects={projects} selectedFilter={selectedFilter} />
     </div>
   );
 }
