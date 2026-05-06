@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown } from "lucide-react";
+import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown, UserCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -11,23 +11,18 @@ const navItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutGrid },
   { name: "Projects", href: "/dashboard/projects", icon: FolderKanban },
   { name: "All tasks", href: "/dashboard/tasks", icon: ListTodo },
-    { name: "Chats", href: "/dashboard/chats", icon: MessageSquare, hasDropdown: true },
+  { name: "Chats", href: "/dashboard/chats", icon: MessageSquare, hasDropdown: true, dropdownType: "chats" },
+  { name: "Profile", href: "/dashboard/profile", icon: UserCircle, hasDropdown: true, dropdownType: "profile" },
 ];
-
-interface SidebarUser {
-  id?: string | null;
-  email?: string | null;
-  full_name?: string | null;
-}
 
 export default function DashboardSidebar({ user }: { user: SidebarUser }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [openChat, setOpenChat] = useState(false);
+  const [openChats, setOpenChats] = useState(false);
+  const [openProfile, setOpenProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
-  const displayName =
-    user.full_name?.trim() || user.email?.split("@")[0] || "You";
+  const displayName = user.full_name?.trim() || user.email?.split("@")[0] || "You";
   const initials = displayName.slice(0, 2).toUpperCase();
 
   const signOut = async () => {
@@ -50,12 +45,8 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
             T
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold tracking-tight text-foreground">
-              Taskly
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              Personal workspace
-            </p>
+            <p className="truncate text-sm font-semibold tracking-tight text-foreground">Taskly</p>
+            <p className="truncate text-xs text-muted-foreground">Personal workspace</p>
           </div>
         </Link>
       </div>
@@ -66,14 +57,22 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
         </p>
         <nav className="space-y-0.5">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
+            const isOpen = item.dropdownType === "chats" ? openChats : openProfile;
+
             return (
               <div key={item.href}>
                 {item.hasDropdown ? (
                   <button
                     type="button"
-                    onClick={() => setOpenChat((value) => !value)}
+                    onClick={() => {
+                      if (item.dropdownType === "chats") {
+                        setOpenChats((prev) => !prev);
+                      } else {
+                        setOpenProfile((prev) => !prev);
+                      }
+                    }}
                     className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition ${
                       active
                         ? "bg-muted font-medium text-foreground"
@@ -86,12 +85,11 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
                     </span>
                     <ChevronDown
                       size={16}
-                      className={openChat ? "rotate-180 transition text-foreground" : "transition"}
+                      className={`${isOpen ? "rotate-180" : ""} transition`}
                     />
                   </button>
                 ) : (
                   <Link
-                    key={item.href}
                     href={item.href}
                     className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
                       active
@@ -103,45 +101,54 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
                     {item.name}
                   </Link>
                 )}
-                {item.hasDropdown && openChat ? (
+
+                {/* Dropdown Content */}
+                {item.hasDropdown && isOpen && (
                   <div className="mt-1 space-y-1 pl-8">
-                    <Link
-                      href="/dashboard/chats"
-                      className={`block rounded-lg px-3 py-2 text-sm transition ${
-                        pathname === "/dashboard/chats"
-                          ? "bg-muted font-medium text-foreground"
-                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                      }`}
-                    >
-                      My Chats
-                    </Link>
+                    {item.dropdownType === "chats" ? (
+                      <Link
+                        href="/dashboard/chats"
+                        className={`block rounded-lg px-3 py-2 text-sm transition ${
+                          pathname === "/dashboard/chats"
+                            ? "bg-muted font-medium text-foreground"
+                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                        }`}
+                      >
+                        My Chats
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/dashboard/profile"
+                        className={`block rounded-lg px-3 py-2 text-sm transition ${
+                          pathname === "/dashboard/profile"
+                            ? "bg-muted font-medium text-foreground"
+                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                        }`}
+                      >
+                        My Profile
+                      </Link>
+                    )}
                   </div>
-                ) : null}
+                )}
               </div>
             );
           })}
         </nav>
       </div>
 
-
-
+      {/* User Section */}
       <div className="mt-auto border-t border-border p-3">
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
           <div className="grid size-8 place-items-center rounded-full bg-muted text-xs font-semibold text-foreground">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">
-              {displayName}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user.email}
-            </p>
+            <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
           </div>
           <button
             onClick={signOut}
             disabled={signingOut}
-            aria-label="Sign out"
             className="grid size-8 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
             <LogOut size={16} strokeWidth={1.75} />
@@ -150,4 +157,11 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
       </div>
     </aside>
   );
+}
+
+// Add this interface at the top if not already present
+interface SidebarUser {
+  id?: string | null;
+  email?: string | null;
+  full_name?: string | null;
 }
