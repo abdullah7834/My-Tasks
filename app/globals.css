@@ -198,6 +198,24 @@
   padding-top: 0.625rem;
 }
 .react-datepicker__current-month, .react-datepicker__day-name { color: var(--foreground); font-weight: 500; }
+
+@layer utilities {
+  .loading-dots {
+    @apply inline-flex items-center gap-2 text-sm text-muted-foreground;
+  }
+  .loading-dot {
+    @apply inline-block h-2 w-2 rounded-full bg-foreground;
+    animation: loading-dot 0.75s ease-in-out infinite;
+  }
+  .loading-dot:nth-child(1) { animation-delay: 0ms; }
+  .loading-dot:nth-child(2) { animation-delay: 120ms; }
+  .loading-dot:nth-child(3) { animation-delay: 240ms; }
+}
+
+@keyframes loading-dot {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
 .react-datepicker__day { color: var(--foreground); border-radius: 0.375rem; }
 .react-datepicker__day:hover { background: var(--muted); }
 .react-datepicker__day--selected,

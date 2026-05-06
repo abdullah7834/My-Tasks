@@ -57,6 +57,7 @@ export interface Database {
           due_date: string | null;
           start_time: string | null;
           end_time: string | null;
+          total_time_minutes: number | null;
           duration_minutes: number | null;
           tags: string[] | null;
           parent_task_id: string | null;
@@ -75,6 +76,7 @@ export interface Database {
           due_date?: string | null;
           start_time?: string | null;
           end_time?: string | null;
+          total_time_minutes?: number | null;
           tags?: string[] | null;
           parent_task_id?: string | null;
           project_id: string;
@@ -91,6 +93,7 @@ export interface Database {
           due_date?: string | null;
           start_time?: string | null;
           end_time?: string | null;
+          total_time_minutes?: number | null;
           tags?: string[] | null;
           parent_task_id?: string | null;
           project_id?: string;
@@ -98,6 +101,34 @@ export interface Database {
           user_id?: string;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      task_logs: {
+        Row: {
+          id: string;
+          task_id: string;
+          event_type: string;
+          event_at: string;
+          duration_minutes: number | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          event_type: string;
+          event_at?: string;
+          duration_minutes?: number | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          task_id?: string;
+          event_type?: string;
+          event_at?: string;
+          duration_minutes?: number | null;
+          note?: string | null;
+          created_at?: string;
         };
       };
     };

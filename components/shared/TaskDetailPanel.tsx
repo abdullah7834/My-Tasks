@@ -12,6 +12,7 @@ import {
   Clock,
   AlignLeft,
 } from "lucide-react";
+import { LoadingDots } from "./LoadingDots";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -31,6 +32,7 @@ export interface PanelTaskRow {
   due_date: Date | null;
   start_time: string;
   end_time: string;
+  total_time_minutes: number;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -42,7 +44,7 @@ interface Props {
   onUpdateField: (
     id: string,
     field: keyof PanelTaskRow,
-    value: any,
+    value: string | Date | null,
     save: "now" | "debounce" | "none",
   ) => void;
   onTitleBlur: (id: string) => void;
@@ -51,11 +53,23 @@ interface Props {
   liveDuration: string | null;
   staticDuration: string;
   onToggleTimer: () => void;
+  logs: Array<{ id: string; event_type: string; event_at: string; duration_minutes: number | null; note: string | null }>;
+  logsLoading: boolean;
+}
+
+function formatDuration(mins: number | null): string {
+  if (mins === null || mins === 0) return "—";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
 }
 
 const STATUS_OPTIONS = [
   { value: "not_started", label: "Not started" },
   { value: "in_progress", label: "In progress" },
+  { value: "stopped_temporarily", label: "Stopped temporarily" },
   { value: "in_review", label: "In review" },
   { value: "done", label: "Done" },
   { value: "cancelled", label: "Cancelled" },
@@ -71,6 +85,7 @@ const PRIORITY_OPTIONS = [
 const STATUS_DOT: Record<string, string> = {
   not_started: "bg-muted-foreground/40",
   in_progress: "bg-info",
+  stopped_temporarily: "bg-warning",
   in_review: "bg-warning",
   done: "bg-success",
   cancelled: "bg-muted-foreground/30",
@@ -86,6 +101,12 @@ function formatTimestamp(iso: string | null | undefined): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function parseLiveMinutes(value: string): number {
+  const parts = value.split(":").map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return 0;
+  return parts[0] * 60 + parts[1] + Math.round(parts[2] / 60);
 }
 
 function relativeTime(iso: string | null | undefined): string {
@@ -117,6 +138,8 @@ export function TaskDetailPanel({
   liveDuration,
   staticDuration,
   onToggleTimer,
+  logs,
+  logsLoading,
 }: Props) {
   // Close on ESC
   useEffect(() => {
@@ -156,7 +179,7 @@ export function TaskDetailPanel({
         role="dialog"
         aria-label="Task details"
         aria-hidden={!row}
-        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col border-l border-border bg-card shadow-2xl shadow-foreground/10 transition-transform duration-300 ease-out ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-135 flex-col border-l border-border bg-card shadow-2xl shadow-foreground/10 transition-transform duration-300 ease-out ${
           row ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -380,7 +403,7 @@ export function TaskDetailPanel({
                       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                         Duration
                       </p>
-                      <div className="flex h-[30px] items-center gap-1.5 rounded-md border border-transparent bg-muted/40 px-2">
+                      <div className="flex h-7.5 items-center gap-1.5 rounded-md border border-transparent bg-muted/40 px-2">
                         {isRunning && liveDuration ? (
                           <>
                             <span className="font-mono text-xs font-medium tabular-nums text-foreground">
@@ -399,6 +422,62 @@ export function TaskDetailPanel({
                       </div>
                     </div>
                   </div>
+                </section>
+                <section className="rounded-xl border border-border bg-muted/20 p-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <Clock size={12} strokeWidth={1.75} />
+                      Total tracked
+                    </h3>
+                  </div>
+                  <div className="mt-4 rounded-md border border-border bg-card p-4 text-sm">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                      Time recorded
+                    </p>
+                    <div className="mt-2 text-lg font-semibold text-foreground">
+                      {formatDuration(
+                        row.total_time_minutes +
+                          (isRunning && liveDuration ? parseLiveMinutes(liveDuration) : 0),
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-3 rounded-xl border border-border bg-muted/20 p-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <Folder size={12} strokeWidth={1.75} />
+                      Activity log
+                    </h3>
+                  </div>
+                  {logsLoading ? (
+                    <LoadingDots label="Loading logs" />
+                  ) : logs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No activity yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {logs.map((log) => (
+                        <div key={log.id} className="rounded-xl border border-border bg-card p-3">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground capitalize">
+                              {log.event_type.replace(/_/g, " ")}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatTimestamp(log.event_at)}
+                            </p>
+                          </div>
+                          {log.duration_minutes !== null && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatDuration(log.duration_minutes)}
+                            </p>
+                          )}
+                          {log.note && (
+                            <p className="mt-2 text-sm text-foreground">{log.note}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
               </div>
             </div>

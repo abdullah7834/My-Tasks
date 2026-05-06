@@ -27,7 +27,7 @@ function createServerSupabaseClient(request: Request) {
 }
 
 const TASK_COLUMNS =
-  "id,title,description,status,priority,due_date,start_time,end_time,project_id,position,created_at,updated_at";
+  "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     due_date: body.due_date ?? null,
     start_time: body.start_time ?? null,
     end_time: body.end_time ?? null,
+    total_time_minutes: body.total_time_minutes ?? 0,
     tags: body.tags ?? [],
     position: body.position ?? 0,
     user_id: user.id,
@@ -138,6 +139,7 @@ export async function PATCH(request: Request) {
   if (body.due_date !== undefined) updates.due_date = body.due_date;
   if (body.start_time !== undefined) updates.start_time = body.start_time;
   if (body.end_time !== undefined) updates.end_time = body.end_time;
+  if (body.total_time_minutes !== undefined) updates.total_time_minutes = body.total_time_minutes;
   if (body.position !== undefined) updates.position = body.position;
 
   if (Object.keys(updates).length === 0) {

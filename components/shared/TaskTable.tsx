@@ -33,9 +33,20 @@ interface TaskRow {
   due_date: Date | null;
   start_time: string;
   end_time: string;
+  total_time_minutes: number;
   created_at?: string | null;
   updated_at?: string | null;
   isNew?: boolean;
+}
+
+interface TaskLog {
+  id: string;
+  task_id: string;
+  event_type: string;
+  event_at: string;
+  duration_minutes: number | null;
+  note: string | null;
+  created_at: string;
 }
 
 interface TaskTableProps {
@@ -49,6 +60,7 @@ interface TaskTableProps {
     due_date: string | null;
     start_time: string | null;
     end_time: string | null;
+    total_time_minutes: number | null;
     created_at?: string | null;
     updated_at?: string | null;
   }>;
@@ -58,6 +70,7 @@ interface TaskTableProps {
 const STATUS_OPTIONS = [
   { value: "not_started", label: "Not started" },
   { value: "in_progress", label: "In progress" },
+  { value: "stopped_temporarily", label: "Stopped temporarily" },
   { value: "in_review", label: "In review" },
   { value: "done", label: "Done" },
   { value: "cancelled", label: "Cancelled" },
@@ -73,6 +86,7 @@ const PRIORITY_OPTIONS = [
 const STATUS_DOT: Record<string, string> = {
   not_started: "bg-muted-foreground/40",
   in_progress: "bg-info",
+  stopped_temporarily: "bg-warning",
   in_review: "bg-warning",
   done: "bg-success",
   cancelled: "bg-muted-foreground/30",
@@ -128,6 +142,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
       due_date: t.due_date ? new Date(t.due_date) : null,
       start_time: normalizeTime(t.start_time),
       end_time: normalizeTime(t.end_time),
+      total_time_minutes: t.total_time_minutes ?? 0,
       created_at: t.created_at ?? null,
       updated_at: t.updated_at ?? null,
       isNew: false,
@@ -135,21 +150,94 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
   );
   const [panelRowId, setPanelRowId] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
-  const [recentlySavedIds, setRecentlySavedIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [recentlySavedIds, setRecentlySavedIds] = useState<Set<string>>(new Set());
+  const [panelLogs, setPanelLogs] = useState<TaskLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const runningStartRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const rowsRef = useRef<TaskRow[]>(rows);
+  const RUNNING_ID_KEY = "task_timer_running_id";
+  const RUNNING_START_KEY = "task_timer_start_at";
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const savedTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   useEffect(() => {
+    const savePendingRow = async (id: string) => {
+      const row = rowsRef.current.find((r) => r.id === id);
+      if (!row || !row.title.trim()) return;
+
+      const payload: Record<string, unknown> = {
+        ...(row.isNew ? {} : { id: row.id }),
+        title: row.title.trim(),
+        description: row.description ?? null,
+        project_id: row.project_id,
+        status: row.status,
+        priority: row.priority,
+        due_date: row.due_date ? row.due_date.toISOString().slice(0, 10) : null,
+        start_time: row.start_time || null,
+        end_time: row.end_time || null,
+        total_time_minutes: row.total_time_minutes,
+      };
+
+      try {
+        await fetch("/api/tasks", {
+          method: row.isNew ? "POST" : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // Ignore failed save during unmount
+      }
+    };
+
     return () => {
+      mountedRef.current = false;
+      const pendingIds = Array.from(timers.current.keys());
       timers.current.forEach(clearTimeout);
+      timers.current.clear();
       savedTimers.current.forEach(clearTimeout);
+      savedTimers.current.clear();
+      pendingIds.forEach((id) => {
+        void savePendingRow(id);
+      });
     };
   }, []);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedId = window.sessionStorage.getItem(RUNNING_ID_KEY);
+    const storedStart = window.sessionStorage.getItem(RUNNING_START_KEY);
+    if (!storedId || !storedStart) return;
+
+    const startAt = Number(storedStart);
+    if (Number.isNaN(startAt)) return;
+
+    const row = rows.find((r) => r.id === storedId);
+    if (!row) {
+      // The active task may be filtered out on the current page,
+      // so keep the persisted timer values until it reappears.
+      return;
+    }
+
+    const isRunningTask =
+      row.status === "in_progress" ||
+      (row.start_time && !row.end_time && row.status !== "done");
+    if (!isRunningTask) {
+      window.sessionStorage.removeItem(RUNNING_ID_KEY);
+      window.sessionStorage.removeItem(RUNNING_START_KEY);
+      return;
+    }
+
+    setRunningId(storedId);
+    runningStartRef.current = startAt;
+    setNow(Date.now());
+  }, [rows]);
 
   // Tick once a second while a row is running — drives the live duration display.
   useEffect(() => {
@@ -157,6 +245,14 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [runningId]);
+
+  useEffect(() => {
+    if (!panelRowId) {
+      setPanelLogs([]);
+      return;
+    }
+    fetchLogs(panelRowId);
+  }, [panelRowId]);
 
   const setSaving = (id: string, on: boolean) => {
     setSavingIds((prev) => {
@@ -186,8 +282,8 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     savedTimers.current.set(id, timer);
   };
 
-  const saveRow = async (row: TaskRow) => {
-    if (!row.title.trim()) return;
+  const saveRow = async (row: TaskRow): Promise<TaskRow | null> => {
+    if (!row.title.trim()) return null;
 
     const payload: Record<string, unknown> = {
       ...(row.isNew ? {} : { id: row.id }),
@@ -199,6 +295,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
       due_date: row.due_date ? row.due_date.toISOString().slice(0, 10) : null,
       start_time: row.start_time || null,
       end_time: row.end_time || null,
+      total_time_minutes: row.total_time_minutes,
     };
 
     setSaving(row.id, true);
@@ -213,31 +310,42 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
 
       const saved = result.task;
       if (saved) {
-        setRows((curr) =>
-          curr.map((r) =>
-            r.id === row.id
-              ? {
-                  ...saved,
-                  due_date: saved.due_date ? new Date(saved.due_date) : null,
-                  start_time: normalizeTime(saved.start_time),
-                  end_time: normalizeTime(saved.end_time),
-                  isNew: false,
-                }
-              : r,
-          ),
-        );
+        const normalized = {
+          ...saved,
+          due_date: saved.due_date ? new Date(saved.due_date) : null,
+          start_time: normalizeTime(saved.start_time),
+          end_time: normalizeTime(saved.end_time),
+          isNew: false,
+        };
+        if (mountedRef.current) {
+          setRows((curr) =>
+            curr.map((r) => (r.id === row.id ? normalized : r)),
+          );
+        }
         flashSaved(saved.id);
+        return normalized;
       }
     } catch (e: any) {
       toast.error(e?.message ?? "Could not save");
     } finally {
       setSaving(row.id, false);
     }
+    return null;
   };
 
   const queueSave = (id: string, delay: number) => {
     const existing = timers.current.get(id);
     if (existing) clearTimeout(existing);
+
+    if (delay === 0) {
+      timers.current.delete(id);
+      setRows((curr) => {
+        const row = curr.find((r) => r.id === id);
+        if (row) saveRow(row);
+        return curr;
+      });
+      return;
+    }
 
     const timer = setTimeout(() => {
       timers.current.delete(id);
@@ -249,6 +357,45 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     }, delay);
 
     timers.current.set(id, timer);
+  };
+
+  const fetchLogs = async (taskId: string) => {
+    setLogsLoading(true);
+    try {
+      const res = await fetch(`/api/task-logs?taskId=${taskId}`);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? "Could not load logs");
+      setPanelLogs(result.logs ?? []);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not load logs");
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const createLog = async (
+    taskId: string,
+    eventType: string,
+    durationMinutes: number | null,
+    note: string,
+  ) => {
+    try {
+      const res = await fetch("/api/task-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task_id: taskId,
+          event_type: eventType,
+          duration_minutes: durationMinutes,
+          note,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? "Could not save log");
+      await fetchLogs(taskId);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not save task log");
+    }
   };
 
   const updateField = (
@@ -280,6 +427,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
         due_date: null,
         start_time: "",
         end_time: "",
+        total_time_minutes: 0,
         isNew: true,
       },
       ...curr,
@@ -290,7 +438,84 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
   // - Moving to "in_progress" stamps start_time if empty.
   // - Moving to "done" stamps end_time if empty (and stops the live timer if running).
   // Manual entries are preserved.
+  const finishTask = (row: TaskRow) => {
+    const endedAt = nowAsHHMM();
+    const segmentDuration = durationMinutes(row.start_time, endedAt) ?? 0;
+
+    setRunningId(null);
+    runningStartRef.current = null;
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(RUNNING_ID_KEY);
+      window.sessionStorage.removeItem(RUNNING_START_KEY);
+    }
+    setRows((curr) =>
+      curr.map((r) =>
+        r.id === row.id
+          ? {
+              ...r,
+              status: "done",
+              end_time: endedAt,
+              total_time_minutes:
+                r.status === "in_progress"
+                  ? r.total_time_minutes + segmentDuration
+                  : r.total_time_minutes,
+            }
+          : r,
+      ),
+    );
+    createLog(row.id, "done", segmentDuration, "Completed");
+    queueSave(row.id, 0);
+  };
+
   const handleStatusChange = (id: string, newStatus: string) => {
+    const row = rows.find((r) => r.id === id);
+    if (!row) return;
+
+    if (newStatus === "in_progress") {
+      startTimer(row);
+      return;
+    }
+
+    if (newStatus === "stopped_temporarily") {
+      if (runningId === id) {
+        pauseTimer(row);
+        return;
+      }
+      setRows((curr) =>
+        curr.map((r) =>
+          r.id === id ? { ...r, status: "stopped_temporarily" } : r,
+        ),
+      );
+      queueSave(id, 0);
+      return;
+    }
+
+    if (newStatus === "done") {
+      if (runningId === id) {
+        finishTask(row);
+        return;
+      }
+      if (row.status === "in_progress" && row.start_time && !row.end_time) {
+        const endedAt = nowAsHHMM();
+        const segmentDuration = durationMinutes(row.start_time, endedAt) ?? 0;
+        setRows((curr) =>
+          curr.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  status: "done",
+                  end_time: endedAt,
+                  total_time_minutes: r.total_time_minutes + segmentDuration,
+                }
+              : r,
+          ),
+        );
+        createLog(id, "done", segmentDuration, "Completed");
+        queueSave(id, 0);
+        return;
+      }
+    }
+
     setRows((curr) =>
       curr.map((r) => {
         if (r.id !== id) return r;
@@ -315,6 +540,10 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     if (runningId === row.id) {
       setRunningId(null);
       runningStartRef.current = null;
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(RUNNING_ID_KEY);
+        window.sessionStorage.removeItem(RUNNING_START_KEY);
+      }
     }
     if (row.isNew) {
       setRows((curr) => curr.filter((r) => r.id !== row.id));
@@ -330,10 +559,16 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     }
   };
 
-  const startTimer = (row: TaskRow) => {
+  const startTimer = async (row: TaskRow) => {
     if (!row.title.trim()) {
       toast.error("Add a title before starting the timer.");
       return;
+    }
+
+    if (row.isNew) {
+      const saved = await saveRow(row);
+      if (!saved) return;
+      row = saved;
     }
 
     // If another row is currently timing, pause it first.
@@ -352,6 +587,11 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
     setRunningId(row.id);
     setNow(startAt.getTime());
 
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(RUNNING_ID_KEY, row.id);
+      window.sessionStorage.setItem(RUNNING_START_KEY, String(startAt.getTime()));
+    }
+
     setRows((curr) =>
       curr.map((r) =>
         r.id === row.id
@@ -363,18 +603,39 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
           : r,
       ),
     );
-    queueSave(row.id, 0);
+    if (row.status !== "in_progress") {
+      const eventType = row.status === "stopped_temporarily" ? "resumed" : "start";
+      createLog(row.id, eventType, null, eventType === "resumed" ? "Resumed" : "Started");
+      updateField(row.id, "status", "in_progress", "now");
+    } else {
+      queueSave(row.id, 0);
+    }
   };
 
   const pauseTimer = (row: TaskRow) => {
+    const stoppedAt = nowAsHHMM();
+    const segmentDuration = durationMinutes(row.start_time, stoppedAt) ?? 0;
+
     setRunningId(null);
     runningStartRef.current = null;
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(RUNNING_ID_KEY);
+      window.sessionStorage.removeItem(RUNNING_START_KEY);
+    }
 
     setRows((curr) =>
       curr.map((r) =>
-        r.id === row.id ? { ...r, end_time: nowAsHHMM() } : r,
+        r.id === row.id
+          ? {
+              ...r,
+              status: "stopped_temporarily",
+              end_time: stoppedAt,
+              total_time_minutes: r.total_time_minutes + segmentDuration,
+            }
+          : r,
       ),
     );
+    createLog(row.id, "stopped_temporarily", segmentDuration, "Paused");
     queueSave(row.id, 0);
   };
 
@@ -383,11 +644,6 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
       { ...row, id: tempId(), title: `${row.title} (copy)`, isNew: true },
       ...curr,
     ]);
-
-  const totalMinutes = rows.reduce(
-    (sum, r) => sum + (durationMinutes(r.start_time, r.end_time) ?? 0),
-    0,
-  );
 
   const panelRow = panelRowId
     ? rows.find((r) => r.id === panelRowId) ?? null
@@ -431,9 +687,6 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
               <th className="px-3 py-3 text-left">Status</th>
               <th className="px-3 py-3 text-left">Priority</th>
               <th className="px-3 py-3 text-left">Due</th>
-              <th className="px-3 py-3 text-left">Start</th>
-              <th className="px-3 py-3 text-left">End</th>
-              <th className="px-3 py-3 text-left">Duration</th>
               <th className="w-px px-5 py-3 text-right">Actions</th>
             </tr>
           </thead>
@@ -441,7 +694,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={6}
                   className="px-5 py-16 text-center text-sm text-muted-foreground"
                 >
                   No tasks yet. Click "Add task" to start.
@@ -541,97 +794,6 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
                       />
                     </td>
 
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="time"
-                        value={row.start_time}
-                        onChange={(e) =>
-                          updateField(
-                            row.id,
-                            "start_time",
-                            e.target.value,
-                            "now",
-                          )
-                        }
-                        className="w-full cursor-pointer bg-transparent font-mono text-xs tabular-nums text-foreground outline-none"
-                      />
-                    </td>
-
-                    <td className="px-3 py-2.5">
-                      <input
-                        type="time"
-                        value={row.end_time}
-                        onChange={(e) =>
-                          updateField(row.id, "end_time", e.target.value, "now")
-                        }
-                        className="w-full cursor-pointer bg-transparent font-mono text-xs tabular-nums text-foreground outline-none"
-                      />
-                    </td>
-
-                    <td className="px-3 py-2.5">
-                      {(() => {
-                        const isRunning = runningId === row.id;
-                        const liveMs =
-                          isRunning && runningStartRef.current !== null
-                            ? now - runningStartRef.current
-                            : 0;
-                        return (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                isRunning ? pauseTimer(row) : startTimer(row)
-                              }
-                              aria-label={
-                                isRunning ? "Pause timer" : "Start timer"
-                              }
-                              className={`grid size-6 shrink-0 cursor-pointer place-items-center rounded-full transition active:scale-95 ${
-                                isRunning
-                                  ? "bg-danger text-danger-foreground hover:bg-danger/90"
-                                  : "bg-muted text-foreground hover:bg-foreground hover:text-background"
-                              }`}
-                            >
-                              {isRunning ? (
-                                <Pause
-                                  size={10}
-                                  strokeWidth={0}
-                                  fill="currentColor"
-                                />
-                              ) : (
-                                <Play
-                                  size={10}
-                                  strokeWidth={0}
-                                  fill="currentColor"
-                                  className="translate-x-px"
-                                />
-                              )}
-                            </button>
-                            {isRunning ? (
-                              <span className="flex items-center gap-1.5">
-                                <span className="font-mono text-xs font-medium tabular-nums text-foreground">
-                                  {formatLive(liveMs)}
-                                </span>
-                                <span
-                                  aria-hidden
-                                  className="size-1.5 animate-pulse rounded-full bg-danger"
-                                />
-                              </span>
-                            ) : (
-                              <span
-                                className={`font-mono text-xs tabular-nums ${
-                                  dur === null
-                                    ? "text-muted-foreground/60"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {formatDuration(dur)}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-
                     <td className="px-5 py-2.5">
                       <div className="flex items-center justify-end gap-1">
                         <span
@@ -672,24 +834,7 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
               })
             )}
           </tbody>
-          {rows.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-border bg-muted/30">
-                <td
-                  colSpan={7}
-                  className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground"
-                >
-                  Total scheduled
-                </td>
-                <td className="px-3 py-3">
-                  <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
-                    {formatDuration(totalMinutes || null)}
-                  </span>
-                </td>
-                <td className="px-5 py-3" />
-              </tr>
-            </tfoot>
-          )}
+          
         </table>
       </div>
     </div>
@@ -705,6 +850,8 @@ export function TaskTable({ initialTasks, projects }: TaskTableProps) {
       isRunning={panelIsRunning}
       liveDuration={panelLiveDuration}
       staticDuration={panelStaticDuration}
+      logs={panelLogs}
+      logsLoading={logsLoading}
       onToggleTimer={() => {
         if (!panelRow) return;
         if (panelIsRunning) pauseTimer(panelRow);
