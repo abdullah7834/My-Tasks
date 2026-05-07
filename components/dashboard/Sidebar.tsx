@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown, UserCircle } from "lucide-react";
+import { LayoutGrid, ListTodo, LogOut, FolderKanban, MessageSquare, ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -12,14 +12,12 @@ const navItems = [
   { name: "Projects", href: "/dashboard/projects", icon: FolderKanban },
   { name: "All tasks", href: "/dashboard/tasks", icon: ListTodo },
   { name: "Chats", href: "/dashboard/chats", icon: MessageSquare, hasDropdown: true, dropdownType: "chats" },
-  { name: "Profile", href: "/dashboard/profile", icon: UserCircle, hasDropdown: true, dropdownType: "profile" },
 ];
 
 export default function DashboardSidebar({ user }: { user: SidebarUser }) {
   const router = useRouter();
   const pathname = usePathname();
   const [openChats, setOpenChats] = useState(false);
-  const [openProfile, setOpenProfile] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const displayName = user.full_name?.trim() || user.email?.split("@")[0] || "You";
@@ -59,7 +57,7 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
-            const isOpen = item.dropdownType === "chats" ? openChats : openProfile;
+            const isOpen = item.dropdownType === "chats" ? openChats : false;
 
             return (
               <div key={item.href}>
@@ -67,11 +65,7 @@ export default function DashboardSidebar({ user }: { user: SidebarUser }) {
                   <button
                     type="button"
                     onClick={() => {
-                      if (item.dropdownType === "chats") {
-                        setOpenChats((prev) => !prev);
-                      } else {
-                        setOpenProfile((prev) => !prev);
-                      }
+                      setOpenChats((prev) => !prev);
                     }}
                     className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition ${
                       active

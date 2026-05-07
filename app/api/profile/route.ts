@@ -1,65 +1,62 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { ensureStorageBucket } from "@/lib/supabase/service";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient, ensureStorageBucket } from "@/lib/supabase/service";
 import type { Database } from "@/types/supabase";
-
-function createServerSupabaseClient(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const parsedCookies = cookieHeader
-    .split("; ")
-    .filter(Boolean)
-    .map((cookie) => {
-      const [name, ...rest] = cookie.split("=");
-      return { name, value: rest.join("=") };
-    });
-
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: async () => parsedCookies,
-        setAll: async () => {
-          // No-op for API requests.
-        },
-      },
-    },
-  );
-}
 
 const AVATAR_BUCKET = "avatars";
 
+function isFormFile(value: unknown): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    "name" in value &&
+    typeof (value as any).size === "number" &&
+    typeof (value as any).name === "string"
+  );
+}
+
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const full_name = formData.get("full_name")?.toString().trim() || null;
-  const phone = formData.get("phone")?.toString().trim() || null;
-  const timezone = formData.get("timezone")?.toString() || null;
-  const role_id = formData.get("role_id")?.toString() || null;
-  const avatarValue = formData.get("avatar");
+  try {
+    const formData = await request.formData();
+    const full_name = formData.get("full_name")?.toString().trim() || null;
+    const phone = formData.get("phone")?.toString().trim() || null;
+    const timezone = formData.get("timezone")?.toString() || null;
+    const role_id = formData.get("role_id")?.toString() || null;
+    const avatarValue = formData.get("avatar");
 
-  const supabase = createServerSupabaseClient(request);
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+    const supabase = await createSupabaseServerClient(request);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  }
+    if (userError || !user) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
 
-  let avatar_url: string | null = null;
+    let avatar_url: string | null = null;
 
-  if (avatarValue instanceof File && avatarValue.size > 0) {
+    if (isFormFile(avatarValue) && avatarValue.size > 0) {
     await ensureStorageBucket(AVATAR_BUCKET);
+
+    const serviceSupabase = createSupabaseServiceClient();
+    if (!serviceSupabase) {
+      return NextResponse.json(
+        { error: "Service role client is not configured." },
+        { status: 500 },
+      );
+    }
 
     const safeFileName = avatarValue.name
       .replace(/[^a-zA-Z0-9._-]/g, "_")
       .slice(0, 200);
     const filePath = `user-profile/${user.id}/${Date.now()}-${safeFileName}`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const avatarBuffer = Buffer.from(await avatarValue.arrayBuffer());
+    const { data: uploadData, error: uploadError } = await serviceSupabase.storage
       .from(AVATAR_BUCKET)
-      .upload(filePath, avatarValue, {
+      .upload(filePath, avatarBuffer, {
         cacheControl: "3600",
         upsert: true,
       });
@@ -71,23 +68,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: publicUrlData } = supabase.storage
+    if (!uploadData?.path) {
+      return NextResponse.json(
+        { error: "Avatar upload completed without a file path." },
+        { status: 500 },
+      );
+    }
+
+    const { data: publicUrlData } = serviceSupabase.storage
       .from(AVATAR_BUCKET)
       .getPublicUrl(uploadData.path);
+
+    if (!publicUrlData?.publicUrl) {
+      return NextResponse.json(
+        { error: "Failed to resolve public avatar URL." },
+        { status: 500 },
+      );
+    }
 
     avatar_url = publicUrlData.publicUrl;
   }
 
-  const profilePayload = {
+  const profilePayload: Database["public"]["Tables"]["user_profiles"]["Insert"] = {
     user_id: user.id,
     full_name,
     phone,
     timezone,
     ...(avatar_url ? { avatar_url } : {}),
-  } as Database["public"]["Tables"]["user_profiles"]["Insert"];
+  };
 
-  const { data: profileData, error: profileError } = await supabase
-    .from<"user_profiles", Database["public"]["Tables"]["user_profiles"]["Insert"]>("user_profiles")
+  const profileClient = supabase as any;
+  const { data: profileData, error: profileError } = await profileClient
+    .from("user_profiles")
     .upsert([profilePayload], { onConflict: "user_id" })
     .select()
     .single();
@@ -97,8 +109,9 @@ export async function POST(request: Request) {
   }
 
   if (role_id) {
-    const { error: roleError } = await supabase
-      .from<"user_roles", Database["public"]["Tables"]["user_roles"]["Insert"]>("user_roles")
+    const profileClient = supabase as any;
+    const { error: roleError } = await profileClient
+      .from("user_roles")
       .upsert(
         [
           {
@@ -116,4 +129,9 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ profile: profileData });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown server error.";
+    console.error("/api/profile error:", message, error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

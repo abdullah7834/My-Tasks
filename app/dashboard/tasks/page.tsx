@@ -3,8 +3,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { TasksDashboard } from "@/components/dashboard/TasksDashboard";
 
 export const dynamic = "force-dynamic";
+const DEFAULT_PAGE_SIZE = 10;
 
-export default async function TasksPage() {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -13,6 +18,10 @@ export default async function TasksPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const resolvedSearchParams = await searchParams;
+  const page = Math.max(Number(resolvedSearchParams?.page ?? "1"), 1);
+  const pageSize = DEFAULT_PAGE_SIZE;
 
   const userId = user.id;
 
@@ -26,10 +35,14 @@ export default async function TasksPage() {
       .from("tasks")
       .select(
         "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at",
+        { count: "exact" },
       )
       .eq("user_id", userId)
       .not("status", "in", "(done,cancelled)")
-      .order("position", { ascending: true }),
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range((page - 1) * pageSize, page * pageSize - 1),
   ]);
 
   const projects = (projectsRes.data ?? []) as {
@@ -51,6 +64,7 @@ export default async function TasksPage() {
     created_at: string | null;
     updated_at: string | null;
   }[];
+  const taskCount = tasksRes.count ?? 0;
 
   return (
     <div className="space-y-6">
@@ -73,6 +87,8 @@ export default async function TasksPage() {
             name: p.name,
             color: p.color,
           }))}
+          taskCount={taskCount}
+          currentPage={page}
         />
       )}
     </div>

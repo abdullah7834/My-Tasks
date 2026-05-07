@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { TasksDashboard, type TaskFilterKey } from "@/components/dashboard/TasksDashboard";
 
 export const dynamic = "force-dynamic";
+const DEFAULT_PAGE_SIZE = 10;
 
 const FILTERS: TaskFilterKey[] = [
   "all",
@@ -22,11 +23,13 @@ const STATUS_MAP: Record<TaskFilterKey, string | null> = {
 
 export default async function TasksFilterPage({
   params,
+  searchParams,
 }: {
   params: { filter: string };
+  searchParams?: Promise<{ page?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { filter } = await params;
+  const { filter } = params;
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -43,29 +46,36 @@ export default async function TasksFilterPage({
     redirect("/dashboard/tasks");
   }
 
+  const resolvedSearchParams = await searchParams;
+  const page = Math.max(Number(resolvedSearchParams?.page ?? "1"), 1);
+  const pageSize = DEFAULT_PAGE_SIZE;
+
   const userId = user.id;
+  const tasksQuery = supabase
+    .from("tasks")
+    .select(
+      "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at",
+      { count: "exact" },
+    )
+    .eq("user_id", userId)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+
+  if (STATUS_MAP[selectedFilter]) {
+    tasksQuery.eq("status", STATUS_MAP[selectedFilter]);
+  } else {
+    tasksQuery.not("status", "in", "(done,cancelled)");
+  }
+
   const [projectsRes, tasksRes] = await Promise.all([
     supabase
       .from("projects")
       .select("id,name,color")
       .eq("user_id", userId)
       .order("created_at", { ascending: true }),
-    STATUS_MAP[selectedFilter]
-      ? supabase
-          .from("tasks")
-          .select(
-            "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at",
-          )
-          .eq("user_id", userId)
-          .eq("status", STATUS_MAP[selectedFilter])
-          .order("position", { ascending: true })
-      : supabase
-          .from("tasks")
-          .select(
-            "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at",
-          )
-          .eq("user_id", userId)
-          .order("position", { ascending: true }),
+    tasksQuery,
   ]);
 
   const projects = (projectsRes.data ?? []) as {
@@ -87,6 +97,7 @@ export default async function TasksFilterPage({
     created_at: string | null;
     updated_at: string | null;
   }[];
+  const taskCount = tasksRes.count ?? 0;
 
   return (
     <div className="space-y-6">
@@ -109,6 +120,8 @@ export default async function TasksFilterPage({
             name: p.name,
             color: p.color,
           }))}
+          taskCount={taskCount}
+          currentPage={page}
         />
       )}
     </div>

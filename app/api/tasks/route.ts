@@ -28,28 +28,57 @@ function createServerSupabaseClient(request: Request) {
 
 const TASK_COLUMNS =
   "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at";
+const DEFAULT_PAGE_SIZE = 10;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const projectId = url.searchParams.get("projectId");
+  const status = url.searchParams.get("status");
+  const page = Math.max(Number(url.searchParams.get("page") ?? "1"), 1);
+  const pageSize = DEFAULT_PAGE_SIZE;
 
   const supabase = createServerSupabaseClient(request);
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  const from = (page - 1) * pageSize;
+  const to = page * pageSize - 1;
+
   let query = supabase
     .from("tasks")
-    .select(TASK_COLUMNS)
-    .order("position", { ascending: true });
+    .select(TASK_COLUMNS, { count: "exact" })
+    .eq("user_id", user.id)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .range(from, to);
 
   if (projectId) {
     query = query.eq("project_id", projectId);
   }
 
-  const { data, error } = await query;
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ tasks: data ?? [] });
+  return NextResponse.json({
+    tasks: data ?? [],
+    count: count ?? 0,
+    page,
+    pageSize,
+  });
 }
 
 export async function POST(request: Request) {

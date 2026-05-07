@@ -165,6 +165,22 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
   const savedTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   useEffect(() => {
+    setRows(
+      initialTasks.map((t) => ({
+        ...t,
+        description: t.description ?? null,
+        due_date: t.due_date ? new Date(t.due_date) : null,
+        start_time: normalizeTime(t.start_time),
+        end_time: normalizeTime(t.end_time),
+        total_time_minutes: t.total_time_minutes ?? 0,
+        created_at: t.created_at ?? null,
+        updated_at: t.updated_at ?? null,
+        isNew: false,
+      })),
+    );
+  }, [initialTasks]);
+
+  useEffect(() => {
     const savePendingRow = async (id: string) => {
       const row = rowsRef.current.find((r) => r.id === id);
       if (!row || !row.title.trim()) return;

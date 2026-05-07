@@ -33,22 +33,37 @@ const FILTERS: Array<{ key: TaskFilterKey; label: string; href: string }> = [
   { key: "cancelled", label: "Cancelled", href: "/dashboard/tasks/cancelled" },
 ];
 
+const DEFAULT_PAGE_SIZE = 10;
+
 export function TasksDashboard({
   projects,
   tasks,
   selectedFilter,
+  taskCount = 0,
+  currentPage = 1,
 }: {
   projects: ProjectOption[];
   tasks: TaskItem[];
   selectedFilter: TaskFilterKey;
+  taskCount?: number;
+  currentPage?: number;
 }) {
-  const headline =
-    tasks.length === 0
-      ? "Nothing here yet"
-      : `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} across ${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
-
   const selectedFilterLabel =
     FILTERS.find((filter) => filter.key === selectedFilter)?.label ?? "All tasks";
+
+  const headline =
+    taskCount === 0
+      ? "Nothing here yet"
+      : taskCount === tasks.length
+      ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} across ${projects.length} ${projects.length === 1 ? "project" : "projects"}`
+      : `Showing ${tasks.length} of ${taskCount} ${taskCount === 1 ? "task" : "tasks"} across ${projects.length} ${projects.length === 1 ? "project" : "projects"}`;
+
+  const pageSize = DEFAULT_PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(taskCount / pageSize));
+  const baseHref = selectedFilter === "all" ? "/dashboard/tasks" : `/dashboard/tasks/${selectedFilter}`;
+
+  const pageHref = (page: number) => `${baseHref}?page=${page}`;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -84,6 +99,38 @@ export function TasksDashboard({
       </nav>
 
       <TaskTable initialTasks={tasks} projects={projects} selectedFilter={selectedFilter} />
+
+      {taskCount > pageSize && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Link
+              href={pageHref(Math.max(1, currentPage - 1))}
+              className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition ${
+                currentPage <= 1
+                  ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                  : "border-border bg-background text-foreground hover:bg-muted/80"
+              }`}
+              aria-disabled={currentPage <= 1}
+            >
+              Previous
+            </Link>
+            <Link
+              href={pageHref(Math.min(totalPages, currentPage + 1))}
+              className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm font-medium transition ${
+                currentPage >= totalPages
+                  ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                  : "border-border bg-background text-foreground hover:bg-muted/80"
+              }`}
+              aria-disabled={currentPage >= totalPages}
+            >
+              Next
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

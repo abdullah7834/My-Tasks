@@ -103,6 +103,56 @@ export interface Database {
           updated_at?: string;
         };
       };
+      user_profiles: {
+        Row: {
+          id: string;
+          user_id: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          phone: string | null;
+          timezone: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          phone?: string | null;
+          timezone?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          phone?: string | null;
+          timezone?: string | null;
+          created_at?: string;
+        };
+      };
+      user_roles: {
+        Row: {
+          id: string;
+          user_id: string;
+          role_id: string;
+          assigned_at: string;
+          assigned_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          role_id: string;
+          assigned_at?: string;
+          assigned_by?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          role_id?: string;
+          assigned_at?: string;
+          assigned_by?: string | null;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
