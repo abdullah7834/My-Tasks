@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { TasksDashboard, type TaskFilterKey } from "@/components/dashboard/TasksDashboard";
+import { TasksDashboard, type TaskFilterKey, type TaskViewKey } from "@/components/dashboard/TasksDashboard";
 
 export const dynamic = "force-dynamic";
 const DEFAULT_PAGE_SIZE = 10;
@@ -26,7 +26,7 @@ export default async function TasksFilterPage({
   searchParams,
 }: {
   params: Promise<{ filter: string }>;
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<{ page?: string; view?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
   const { filter } = await params;
@@ -50,6 +50,16 @@ export default async function TasksFilterPage({
   const page = Math.max(Number(resolvedSearchParams?.page ?? "1"), 1);
   const pageSize = DEFAULT_PAGE_SIZE;
 
+  const currentView: TaskViewKey =
+    resolvedSearchParams?.view === "project" ? "project" : "list";
+
+  const isCompleted = selectedFilter === "completed";
+  const isProjectView = currentView === "project";
+
+  // For completed and project views we fetch all matching tasks (no page cap)
+  // so date-groups and project-groups are never split across pages.
+  const skipPagination = isCompleted || isProjectView;
+
   const userId = user.id;
   const tasksQuery = supabase
     .from("tasks")
@@ -58,10 +68,13 @@ export default async function TasksFilterPage({
       { count: "exact" },
     )
     .eq("user_id", userId)
-    .order("position", { ascending: true })
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .range((page - 1) * pageSize, page * pageSize - 1);
+    .order(isCompleted ? "updated_at" : "position", { ascending: !isCompleted })
+    .order("created_at", { ascending: !isCompleted })
+    .order("id", { ascending: true });
+
+  if (!skipPagination) {
+    tasksQuery.range((page - 1) * pageSize, page * pageSize - 1);
+  }
 
   if (STATUS_MAP[selectedFilter]) {
     tasksQuery.eq("status", STATUS_MAP[selectedFilter]);
@@ -114,6 +127,7 @@ export default async function TasksFilterPage({
       ) : (
         <TasksDashboard
           selectedFilter={selectedFilter}
+          currentView={currentView}
           tasks={tasks}
           projects={projects.map((p) => ({
             id: p.id,

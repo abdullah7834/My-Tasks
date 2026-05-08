@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Copy,
   Plus,
@@ -82,6 +82,7 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -136,7 +137,7 @@ function nowAsHHMM(): string {
 }
 
 export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: TaskTableProps) {
-  const [rows, setRows] = useState<TaskRow[]>(
+  const [rows, _setRows] = useState<TaskRow[]>(
     initialTasks.map((t) => ({
       ...t,
       description: t.description ?? null,
@@ -160,26 +161,32 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
   const runningStartRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
   const rowsRef = useRef<TaskRow[]>(rows);
+
+  // Wrapper that updates rowsRef SYNCHRONOUSLY before scheduling the React
+  // state update. React 18 batches/queues updater functions and only invokes
+  // them when flushing the batch (after the event handler completes), so we
+  // can't rely on the updater body to keep rowsRef current. Instead we compute
+  // `next` from rowsRef.current immediately, update the ref, and pass the
+  // resolved array to _setRows — so queueSave(id, 0) right after setRows
+  // always reads the latest data.
+  const setRows = useCallback(
+    (updater: TaskRow[] | ((curr: TaskRow[]) => TaskRow[])) => {
+      const next =
+        typeof updater === "function" ? updater(rowsRef.current) : updater;
+      rowsRef.current = next;
+      _setRows(next);
+    },
+    [],
+  );
   const RUNNING_ID_KEY = "task_timer_running_id";
   const RUNNING_START_KEY = "task_timer_start_at";
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const savedTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-
-  useEffect(() => {
-    setRows(
-      initialTasks.map((t) => ({
-        ...t,
-        description: t.description ?? null,
-        due_date: t.due_date ? new Date(t.due_date) : null,
-        start_time: normalizeTime(t.start_time),
-        end_time: normalizeTime(t.end_time),
-        total_time_minutes: t.total_time_minutes ?? 0,
-        created_at: t.created_at ?? null,
-        updated_at: t.updated_at ?? null,
-        isNew: false,
-      })),
-    );
-  }, [initialTasks]);
+  // Tracks temp IDs that have been successfully committed to the DB (POST completed).
+  // Prevents stale closures from firing a second POST after the first save finishes.
+  const committedTempIds = useRef(new Set<string>());
+  // Maps old temp ID → real UUID, so stale closures can resolve to the current row.
+  const tempToRealIdRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     const savePendingRow = async (id: string) => {
@@ -222,10 +229,6 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
       });
     };
   }, []);
-
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -304,6 +307,18 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
 
   const saveRow = async (row: TaskRow): Promise<TaskRow | null> => {
     if (!row.title.trim()) return null;
+
+    // Stale closure guard: if a temp row was already committed to the DB by a
+    // previous save, redirect to the real row and PATCH instead of POSTing again.
+    if (row.isNew && committedTempIds.current.has(row.id)) {
+      const realId = tempToRealIdRef.current.get(row.id);
+      if (realId) {
+        const realRow = rowsRef.current.find((r) => r.id === realId);
+        if (realRow) return saveRow(realRow);
+      }
+      return null;
+    }
+
     if (savingIdsRef.current.has(row.id)) return null;
 
     const payload: Record<string, unknown> = {
@@ -331,20 +346,34 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
 
       const saved = result.task;
       if (saved) {
-        const normalized = {
-          ...saved,
-          due_date: saved.due_date ? new Date(saved.due_date) : null,
-          start_time: normalizeTime(saved.start_time),
-          end_time: normalizeTime(saved.end_time),
-          isNew: false,
-        };
+        if (row.isNew) {
+          // Record the committed temp ID so any concurrent stale closure can
+          // resolve to the real row instead of firing a second POST.
+          committedTempIds.current.add(row.id);
+          tempToRealIdRef.current.set(row.id, saved.id);
+
+          // Migrate any pending debounce timer from old temp key to real UUID.
+          const existingTimer = timers.current.get(row.id);
+          if (existingTimer) {
+            timers.current.set(saved.id, existingTimer);
+            timers.current.delete(row.id);
+          }
+        }
+
         if (mountedRef.current) {
+          // Preserve local edits (project, status, priority etc.) that the user
+          // may have changed while the POST was in-flight. Only update the fields
+          // that the server owns: id, isNew flag, and timestamps.
           setRows((curr) =>
-            curr.map((r) => (r.id === row.id ? normalized : r)),
+            curr.map((r) =>
+              r.id === row.id
+                ? { ...r, id: saved.id, isNew: false, created_at: saved.created_at, updated_at: saved.updated_at }
+                : r,
+            ),
           );
         }
         flashSaved(saved.id);
-        return normalized;
+        return rowsRef.current.find((r) => r.id === saved.id) ?? { ...row, id: saved.id, isNew: false };
       }
     } catch (e: any) {
       toast.error(e?.message ?? "Could not save");
@@ -373,6 +402,8 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
   };
 
   const fetchLogs = async (taskId: string) => {
+    // tempIds are not real UUIDs — the task hasn't been saved to the DB yet.
+    if (taskId.startsWith("temp-")) return;
     setLogsLoading(true);
     try {
       const res = await fetch(`/api/task-logs?taskId=${taskId}`);
@@ -431,6 +462,10 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
       toast.error("Create a project first.");
       return;
     }
+    if (rowsRef.current.some((r) => r.isNew)) {
+      toast.info("Save the current new task before adding another.");
+      return;
+    }
     setRows((curr) => [
       {
         id: tempId(),
@@ -482,8 +517,9 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
     queueSave(row.id, 0);
   };
 
-  const handleStatusChange = (id: string, newStatus: string) => {
-    const row = rows.find((r) => r.id === id);
+  const handleStatusChange = (idArg: string, newStatus: string) => {
+    const id = tempToRealIdRef.current.get(idArg) ?? idArg;
+    const row = rowsRef.current.find((r) => r.id === id);
     if (!row) return;
 
     if (newStatus === "in_progress") {
@@ -548,10 +584,15 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
       setRunningId(null);
       runningStartRef.current = null;
     }
+    if (newStatus === "cancelled") {
+      createLog(id, "cancelled", null, "Cancelled");
+    }
     queueSave(id, 0);
   };
 
-  const del = async (row: TaskRow) => {
+  const del = async (rowArg: TaskRow) => {
+    const resolvedId = tempToRealIdRef.current.get(rowArg.id) ?? rowArg.id;
+    const row = rowsRef.current.find((r) => r.id === resolvedId) ?? rowArg;
     if (runningId === row.id) {
       setRunningId(null);
       runningStartRef.current = null;
@@ -559,6 +600,12 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
         window.sessionStorage.removeItem(RUNNING_ID_KEY);
         window.sessionStorage.removeItem(RUNNING_START_KEY);
       }
+    }
+    // Cancel any pending debounce timers for this row.
+    const pendingTimer = timers.current.get(row.id);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      timers.current.delete(row.id);
     }
     if (row.isNew) {
       setRows((curr) => curr.filter((r) => r.id !== row.id));
@@ -574,7 +621,11 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
     }
   };
 
-  const startTimer = async (row: TaskRow) => {
+  const startTimer = async (rowArg: TaskRow) => {
+    // Resolve stale closures: if the temp row was already saved, use the real row.
+    const resolvedId = tempToRealIdRef.current.get(rowArg.id) ?? rowArg.id;
+    let row = rowsRef.current.find((r) => r.id === resolvedId) ?? rowArg;
+
     if (!row.title.trim()) {
       toast.error("Add a title before starting the timer.");
       return;
@@ -586,15 +637,27 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
       row = saved;
     }
 
-    // If another row is currently timing, pause it first.
+    // If another row is currently timing, fully pause it first.
     if (runningId && runningId !== row.id) {
       const stoppedAt = nowAsHHMM();
-      setRows((curr) =>
-        curr.map((r) =>
-          r.id === runningId ? { ...r, end_time: stoppedAt } : r,
-        ),
-      );
-      queueSave(runningId, 0);
+      const prevRow = rowsRef.current.find((r) => r.id === runningId);
+      if (prevRow) {
+        const segmentDuration = durationMinutes(prevRow.start_time, stoppedAt) ?? 0;
+        setRows((curr) =>
+          curr.map((r) =>
+            r.id === runningId
+              ? {
+                  ...r,
+                  status: "stopped_temporarily",
+                  end_time: stoppedAt,
+                  total_time_minutes: r.total_time_minutes + segmentDuration,
+                }
+              : r,
+          ),
+        );
+        createLog(runningId, "stopped_temporarily", segmentDuration, "Paused");
+        queueSave(runningId, 0);
+      }
     }
 
     const startAt = new Date();
@@ -837,9 +900,10 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
                           ) : null}
                         </span>
                         <button
-                          onClick={() => setPanelRowId(row.id)}
+                          onClick={() => { if (!row.isNew) setPanelRowId(row.id); }}
                           aria-label="Open task details"
-                          className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+                          disabled={row.isNew}
+                          className="grid size-7 cursor-pointer place-items-center rounded-md text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 disabled:pointer-events-none disabled:opacity-30"
                         >
                           <PanelRightOpen size={14} strokeWidth={1.75} />
                         </button>
