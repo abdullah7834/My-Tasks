@@ -12,7 +12,7 @@ const titleMap: Record<string, string> = {
   "/dashboard/profile": "Profile",
 };
 
-export default function DashboardHeader({ user }: { user: { full_name?: string | null; email?: string | null; avatar_url?: string | null } }) {
+export default function DashboardHeader({ user }: { user: { id?: string; full_name?: string | null; email?: string | null; avatar_url?: string | null } }) {
   const [openProfile, setOpenProfile] = useState(false);
   const pathname = usePathname();
   const title = titleMap[pathname] ?? "";

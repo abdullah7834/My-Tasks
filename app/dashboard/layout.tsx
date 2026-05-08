@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/supabase";
 import DashboardSidebar from "@/components/dashboard/Sidebar";
 import DashboardHeader from "@/components/dashboard/Header";
 
@@ -19,7 +18,7 @@ export default async function DashboardLayout({
   }
 
   const profileRes = await supabase
-    .from<"user_profiles", Database["public"]["Tables"]["user_profiles"]["Row"]>("user_profiles")
+    .from("user_profiles")
     .select("avatar_url")
     .eq("user_id", user.id)
     .maybeSingle();

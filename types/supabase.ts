@@ -3,6 +3,20 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 export interface Database {
   public: {
     Tables: {
+      roles: {
+        Row: {
+          id: string;
+          name: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+        };
+        Update: {
+          name?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -18,6 +32,7 @@ export interface Database {
           email?: string;
           created_at?: string | null;
         };
+        Relationships: [];
       };
       projects: {
         Row: {
@@ -46,6 +61,7 @@ export interface Database {
           user_id?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       tasks: {
         Row: {
@@ -102,6 +118,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       user_profiles: {
         Row: {
@@ -130,6 +147,7 @@ export interface Database {
           timezone?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       user_roles: {
         Row: {
@@ -152,6 +170,7 @@ export interface Database {
           assigned_at?: string;
           assigned_by?: string | null;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database } from "@/types/supabase";
 import ProfileForm from "@/components/dashboard/ProfileForm";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +16,16 @@ export default async function ProfilePage() {
 
   const [profileRes, rolesRes, roleRes] = await Promise.all([
     supabase
-      .from<"user_profiles", Database["public"]["Tables"]["user_profiles"]["Row"]>("user_profiles")
+      .from("user_profiles")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
-      .from<"roles", Database["public"]["Tables"]["roles"]["Row"]>("roles")
+      .from("roles")
       .select("id,name")
       .order("name", { ascending: true }),
     supabase
-      .from<"user_roles", Database["public"]["Tables"]["user_roles"]["Row"]>("user_roles")
+      .from("user_roles")
       .select("role_id")
       .eq("user_id", user.id)
       .maybeSingle(),
