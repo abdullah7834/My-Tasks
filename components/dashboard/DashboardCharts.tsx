@@ -16,6 +16,7 @@ const STATUS_LABELS: Array<{
   tone: string;
 }> = [
   { key: "not_started", label: "Not started", tone: "bg-muted-foreground/30 text-muted-foreground" },
+  { key: "started", label: "Started", tone: "bg-blue-400/70 text-blue-500" },
   { key: "in_progress", label: "In progress", tone: "bg-info text-info" },
   { key: "stopped_temporarily", label: "Stopped temporarily", tone: "bg-warning text-warning" },
   { key: "in_review", label: "In review", tone: "bg-warning text-warning" },

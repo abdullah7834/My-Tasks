@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const ALLOWED_EVENTS = [
   "start",
+  "started",
   "resumed",
   "stopped_temporarily",
   "done",

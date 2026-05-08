@@ -54,6 +54,7 @@ interface ProjectTaskGroupsProps {
 
 const STATUS_DOT: Record<string, string> = {
   not_started: "bg-muted-foreground/40",
+  started: "bg-blue-400",
   in_progress: "bg-blue-500",
   stopped_temporarily: "bg-amber-500",
   in_review: "bg-amber-500",
@@ -63,6 +64,7 @@ const STATUS_DOT: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   not_started: "Not started",
+  started: "Started",
   in_progress: "In progress",
   stopped_temporarily: "Stopped",
   in_review: "In review",

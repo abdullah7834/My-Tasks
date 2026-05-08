@@ -70,6 +70,7 @@ interface TaskTableProps {
 
 const STATUS_OPTIONS = [
   { value: "not_started", label: "Not started" },
+  { value: "started", label: "Started" },
   { value: "in_progress", label: "In progress" },
   { value: "stopped_temporarily", label: "Stopped temporarily" },
   { value: "in_review", label: "In review" },
@@ -87,6 +88,7 @@ const PRIORITY_OPTIONS = [
 
 const STATUS_DOT: Record<string, string> = {
   not_started: "bg-muted-foreground/40",
+  started: "bg-blue-400",
   in_progress: "bg-info",
   stopped_temporarily: "bg-warning",
   in_review: "bg-warning",
@@ -248,6 +250,7 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
 
     const isRunningTask =
       row.status === "in_progress" ||
+      row.status === "started" ||
       (row.start_time && !row.end_time && row.status !== "done");
     if (!isRunningTask) {
       window.sessionStorage.removeItem(RUNNING_ID_KEY);
@@ -522,7 +525,7 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
     const row = rowsRef.current.find((r) => r.id === id);
     if (!row) return;
 
-    if (newStatus === "in_progress") {
+    if (newStatus === "in_progress" || newStatus === "started") {
       startTimer(row);
       return;
     }
@@ -681,11 +684,16 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
           : r,
       ),
     );
-    if (row.status !== "in_progress") {
-      const eventType = row.status === "stopped_temporarily" ? "resumed" : "start";
-      createLog(row.id, eventType, null, eventType === "resumed" ? "Resumed" : "Started");
+    if (row.status === "stopped_temporarily") {
+      // Task was paused — resume it
+      createLog(row.id, "resumed", null, "Resumed");
       updateField(row.id, "status", "in_progress", "now");
+    } else if (row.status !== "in_progress" && row.status !== "started") {
+      // First-ever start from not_started (or any other idle state)
+      createLog(row.id, "started", null, "Started");
+      updateField(row.id, "status", "started", "now");
     } else {
+      // Already marked started/in_progress — just persist the new timing
       queueSave(row.id, 0);
     }
   };

@@ -68,6 +68,7 @@ function formatDuration(mins: number | null): string {
 
 const STATUS_OPTIONS = [
   { value: "not_started", label: "Not started" },
+  { value: "started", label: "Started" },
   { value: "in_progress", label: "In progress" },
   { value: "stopped_temporarily", label: "Stopped temporarily" },
   { value: "in_review", label: "In review" },
@@ -80,10 +81,12 @@ const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
   not_started: "bg-muted-foreground/40",
+  started: "bg-blue-400",
   in_progress: "bg-info",
   stopped_temporarily: "bg-warning",
   in_review: "bg-warning",
