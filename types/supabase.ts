@@ -3,6 +3,33 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 export interface Database {
   public: {
     Tables: {
+      task_logs: {
+        Row: {
+          id: string;
+          task_id: string;
+          event_type: string;
+          event_at: string;
+          duration_minutes: number | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          event_type: string;
+          event_at?: string;
+          duration_minutes?: number | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          event_type?: string;
+          event_at?: string;
+          duration_minutes?: number | null;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
       roles: {
         Row: {
           id: string;

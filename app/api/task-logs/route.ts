@@ -1,30 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import type { Database } from "@/types/supabase";
-
-function createServerSupabaseClient(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const parsedCookies = cookieHeader
-    .split("; ")
-    .filter(Boolean)
-    .map((cookie) => {
-      const [name, ...rest] = cookie.split("=");
-      return { name, value: rest.join("=") };
-    });
-
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: async () => parsedCookies,
-        setAll: async () => {
-          // No-op for route handlers.
-        },
-      },
-    },
-  );
-}
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const ALLOWED_EVENTS = [
   "start",
@@ -47,7 +22,31 @@ export async function GET(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient(request);
+  const supabase = await createSupabaseServerClient(request);
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  // Verify the task belongs to the requesting user before returning its logs.
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("id", taskId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (taskError) {
+    return NextResponse.json({ error: taskError.message }, { status: 500 });
+  }
+  if (!task) {
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
+  }
+
   const { data, error } = await supabase
     .from("task_logs")
     .select("id,task_id,event_type,event_at,duration_minutes,note,created_at")
@@ -80,7 +79,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient(request) as any;
+  const supabase = await createSupabaseServerClient(request);
   const {
     data: { user },
     error: userError,
@@ -93,17 +92,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const insert = {
-    task_id: taskId,
-    event_type: eventType,
-    event_at: body.event_at ?? new Date().toISOString(),
-    duration_minutes: body.duration_minutes ?? null,
-    note: body.note ?? null,
-  };
+  // Verify task ownership before inserting a log.
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("id", taskId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (taskError) {
+    return NextResponse.json({ error: taskError.message }, { status: 500 });
+  }
+  if (!task) {
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
+  }
 
   const { data, error } = await supabase
     .from("task_logs")
-    .insert([insert])
+    .insert([{
+      task_id: taskId,
+      event_type: eventType,
+      event_at: body.event_at ?? new Date().toISOString(),
+      duration_minutes: body.duration_minutes ?? null,
+      note: body.note ?? null,
+    }])
     .select("id,task_id,event_type,event_at,duration_minutes,note,created_at")
     .single();
 

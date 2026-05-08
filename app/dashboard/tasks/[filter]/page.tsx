@@ -25,11 +25,11 @@ export default async function TasksFilterPage({
   params,
   searchParams,
 }: {
-  params: { filter: string };
+  params: Promise<{ filter: string }>;
   searchParams?: Promise<{ page?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
-  const { filter } = params;
+  const { filter } = await params;
   const {
     data: { user },
   } = await supabase.auth.getUser();

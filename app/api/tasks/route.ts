@@ -1,30 +1,6 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
-
-function createServerSupabaseClient(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const parsedCookies = cookieHeader
-    .split("; ")
-    .filter(Boolean)
-    .map((cookie) => {
-      const [name, ...rest] = cookie.split("=");
-      return { name, value: rest.join("=") };
-    });
-
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: async () => parsedCookies,
-        setAll: async () => {
-          // No-op for route handlers, as cookies are not updated here.
-        },
-      },
-    },
-  );
-}
 
 const TASK_COLUMNS =
   "id,title,description,status,priority,due_date,start_time,end_time,total_time_minutes,project_id,position,created_at,updated_at";
@@ -37,7 +13,7 @@ export async function GET(request: Request) {
   const page = Math.max(Number(url.searchParams.get("page") ?? "1"), 1);
   const pageSize = DEFAULT_PAGE_SIZE;
 
-  const supabase = createServerSupabaseClient(request);
+  const supabase = await createSupabaseServerClient(request);
   const {
     data: { user },
     error: authError,
@@ -93,7 +69,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient(request);
+  const supabase = await createSupabaseServerClient(request);
   const {
     data: { user },
     error: userError,
@@ -106,24 +82,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const insert: any = {
-    title,
-    description: body.description ?? null,
-    project_id: projectId,
-    status: body.status ?? "not_started",
-    priority: body.priority ?? "none",
-    due_date: body.due_date ?? null,
-    start_time: body.start_time ?? null,
-    end_time: body.end_time ?? null,
-    total_time_minutes: body.total_time_minutes ?? 0,
-    tags: body.tags ?? [],
-    position: body.position ?? 0,
-    user_id: user.id,
-  };
-
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("tasks")
-    .insert([insert])
+    .insert([{
+      title,
+      description: body.description ?? null,
+      project_id: projectId,
+      status: body.status ?? "not_started",
+      priority: body.priority ?? "none",
+      due_date: body.due_date ?? null,
+      start_time: body.start_time ?? null,
+      end_time: body.end_time ?? null,
+      total_time_minutes: body.total_time_minutes ?? 0,
+      tags: body.tags ?? [],
+      position: body.position ?? 0,
+      user_id: user.id,
+    }])
     .select(TASK_COLUMNS)
     .single();
 
@@ -145,7 +119,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient(request) as any;
+  const supabase = await createSupabaseServerClient(request);
   const {
     data: { user },
     error: userError,
@@ -158,8 +132,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  // Only include fields that were explicitly sent — partial update semantics.
-  const updates: Record<string, unknown> = {};
+  const updates: Database["public"]["Tables"]["tasks"]["Update"] = {};
   if (body.title !== undefined) updates.title = String(body.title).trim();
   if (body.description !== undefined) updates.description = body.description;
   if (body.project_id !== undefined) updates.project_id = body.project_id;
@@ -204,7 +177,7 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient(request);
+  const supabase = await createSupabaseServerClient(request);
   const {
     data: { user },
     error: userError,

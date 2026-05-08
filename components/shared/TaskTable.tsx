@@ -151,6 +151,7 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
   );
   const [panelRowId, setPanelRowId] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const savingIdsRef = useRef<Set<string>>(new Set());
   const [recentlySavedIds, setRecentlySavedIds] = useState<Set<string>>(new Set());
   const [panelLogs, setPanelLogs] = useState<TaskLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -272,6 +273,8 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
   }, [panelRowId]);
 
   const setSaving = (id: string, on: boolean) => {
+    if (on) savingIdsRef.current.add(id);
+    else savingIdsRef.current.delete(id);
     setSavingIds((prev) => {
       const next = new Set(prev);
       if (on) next.add(id);
@@ -301,6 +304,7 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
 
   const saveRow = async (row: TaskRow): Promise<TaskRow | null> => {
     if (!row.title.trim()) return null;
+    if (savingIdsRef.current.has(row.id)) return null;
 
     const payload: Record<string, unknown> = {
       ...(row.isNew ? {} : { id: row.id }),
@@ -354,26 +358,18 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
     const existing = timers.current.get(id);
     if (existing) clearTimeout(existing);
 
-    if (delay === 0) {
+    const doSave = () => {
       timers.current.delete(id);
-      setRows((curr) => {
-        const row = curr.find((r) => r.id === id);
-        if (row) saveRow(row);
-        return curr;
-      });
+      const row = rowsRef.current.find((r) => r.id === id);
+      if (row) saveRow(row);
+    };
+
+    if (delay === 0) {
+      doSave();
       return;
     }
 
-    const timer = setTimeout(() => {
-      timers.current.delete(id);
-      setRows((curr) => {
-        const row = curr.find((r) => r.id === id);
-        if (row) saveRow(row);
-        return curr;
-      });
-    }, delay);
-
-    timers.current.set(id, timer);
+    timers.current.set(id, setTimeout(doSave, delay));
   };
 
   const fetchLogs = async (taskId: string) => {
@@ -409,7 +405,9 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error ?? "Could not save log");
-      await fetchLogs(taskId);
+      if (result.log) {
+        setPanelLogs((prev) => [...prev, result.log]);
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Could not save task log");
     }
@@ -656,11 +654,11 @@ export function TaskTable({ initialTasks, projects, selectedFilter = "all" }: Ta
     queueSave(row.id, 0);
   };
 
-  const dup = (row: TaskRow) =>
-    setRows((curr) => [
-      { ...row, id: tempId(), title: `${row.title} (copy)`, isNew: true },
-      ...curr,
-    ]);
+  const dup = (row: TaskRow) => {
+    const newRow: TaskRow = { ...row, id: tempId(), title: `${row.title} (copy)`, isNew: true };
+    setRows((curr) => [newRow, ...curr]);
+    saveRow(newRow);
+  };
 
   const panelRow = panelRowId
     ? rows.find((r) => r.id === panelRowId) ?? null
