@@ -20,7 +20,7 @@ export async function PATCH(
   if (typeof is_active === "boolean") updates.is_active = is_active;
 
   if (Object.keys(updates).length > 1) {
-    const { error } = await supabase.from("roles").update(updates).eq("id", id);
+    const { error } = await supabase.from("roles").update(updates as any).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -29,7 +29,7 @@ export async function PATCH(
     await supabase.from("role_permissions").delete().eq("role_id", id);
     if (permission_ids.length > 0) {
       const rows = permission_ids.map((pid: string) => ({ role_id: id, permission_id: pid }));
-      const { error } = await supabase.from("role_permissions").insert(rows);
+      const { error } = await supabase.from("role_permissions").insert(rows as any);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
   }

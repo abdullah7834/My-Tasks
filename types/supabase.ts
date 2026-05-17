@@ -34,13 +34,30 @@ export interface Database {
         Row: {
           id: string;
           name: string;
+          description: string | null;
+          level: number;
+          is_active: boolean;
+          is_system: boolean;
+          created_at: string;
+          updated_at: string | null;
         };
         Insert: {
           id?: string;
           name: string;
+          description?: string | null;
+          level?: number;
+          is_active?: boolean;
+          is_system?: boolean;
+          created_at?: string;
+          updated_at?: string | null;
         };
         Update: {
           name?: string;
+          description?: string | null;
+          level?: number;
+          is_active?: boolean;
+          is_system?: boolean;
+          updated_at?: string | null;
         };
         Relationships: [];
       };
@@ -48,15 +65,24 @@ export interface Database {
         Row: {
           id: string;
           email: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          is_active: boolean;
           created_at: string | null;
         };
         Insert: {
           id?: string;
           email: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          is_active?: boolean;
           created_at?: string | null;
         };
         Update: {
           email?: string;
+          full_name?: string | null;
+          avatar_url?: string | null;
+          is_active?: boolean;
           created_at?: string | null;
         };
         Relationships: [];
